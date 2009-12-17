@@ -1,12 +1,15 @@
 #!/usr/bin/env ruby
 
 require 'rubygems'
+require 'etc'
+require 'yaml'
 require 'rmodbus'
 require 'clickatell'
 
 mb = ModBus::TCPClient.new '192.168.0.189'
 
-clickatell = Clickatell::API.authenticate 'xxxxxx', 'xxxxxx', 'xxxxxx'
+cc = YAML.load_file File.join(Etc.getpwuid.dir, '.clickatell')
+clickatell = Clickatell::API.authenticate cc['api_key'], cc['username'], cc['password']
 
 begin
   loop do
