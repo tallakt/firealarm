@@ -11,12 +11,22 @@ class FireAlarm
 	SAMPLE_TIME = 5.0
 
 	def run
-		log 'Fire alarm daemon started'
-		with_modbus do
-			init_clickatell
-			loop do 
-				fire_undetected_loop
-				fire_detected_loop
+		# cat /var/log/firealarm.rb.output 
+		# cat /var/run/firealarm.rb.pid 
+
+
+		Daemons.run_proc('firealarm.rb', 
+										 :multiple => false, 
+										 :backtrace => true, 
+										 :log_output => true,
+										 :dir_mode => :system) do
+			log 'Fire alarm daemon started'
+			with_modbus do
+				init_clickatell
+				loop do 
+					fire_undetected_loop
+					fire_detected_loop
+				end
 			end
 		end
 	end
