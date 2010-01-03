@@ -5,49 +5,74 @@ require 'etc'
 require 'yaml'
 require 'rmodbus'
 require 'clickatell'
+require 'daemons'
 
-mb = ModBus::TCPClient.new '192.168.0.189'
+class FireAlarm
+	SAMPLE_TIME = 5.0
 
-cc = YAML.load_file File.join(Etc.getpwuid.dir, '.clickatell')
-clickatell = Clickatell::API.authenticate cc['api_key'], cc['username'], cc['password']
-fire_warned = false
-
-begin
-  loop do
-    ra, rb = mb.read_holding_registers 5391, 2
-		# four inputs on my Modbus hardware from Scheider
-    a, b, c, d = (0..3).map {|bit| ra[bit] }
-
-#    puts 'a: %s' % a.to_s
-#    puts 'b: %s' % b.to_s
-#    puts 'c: %s' % c.to_s
-#    puts 'd: %s' % d.to_s
-
-		fire_detected ||= (a == 0)
-
-		if not fire_warned and fire_detected
-			while true
-				begin
-					puts 'Sending SMS!'
-					%w(4740220423 4740402040).each do |tel|
-						clickatell.send_message tel, 'Røykvarsler eller vannvarsler aktivert'
-					end
-					break
-				rescue
-					wait = 10.0
-					$stderr.puts 'Could not send SMS, try again in %.0f seconds' % wait
-					sleep wait
-				end
+	def run
+		log 'Fire alarm daemon started'
+		with_modbus do
+			init_clickatell
+			loop do 
+				fire_undetected_loop
+				fire_detected_loop
 			end
 		end
+	end
 
-		fire_warned = fire_detected
+	def fire_undetected_loop
+		while not check_fire_detected do
+			sleep SAMPLE_TIME
+		end
+	end
 
-#    [5356, 5366, 5357, 5382, 5383, 5391, 5392].each do |addr|
-#      puts '%d: %d' % [addr, mb.read_holding_registers(addr, 1).first]
-#    end
-    sleep 5.0
-  end
-ensure
-  mb.close
+	def fire_detected_loop
+		send_sms 'Smoke or water detector activated'
+		while check_fire_detected do
+			sleep SAMPLE_TIME
+		end
+		log 'Fire alarm no longer active'
+	end
+
+	def with_modbus
+		@mb = ModBus::TCPClient.new '192.168.0.189'
+		begin
+			yield
+		ensure
+			@mb.close
+		end
+	end
+
+	def init_clickatell
+		cc = YAML.load_file File.join(Etc.getpwuid.dir, '.clickatell')
+		@clickatell = Clickatell::API.authenticate cc['api_key'], cc['username'], cc['password']
+	end
+
+	def check_fire_detected
+		ra, rb = @mb.read_holding_registers 5391, 2
+		a, b, c, d = (0..3).map {|bit| ra[bit] }
+		a == 0
+	end
+
+	def send_sms(text)
+		%w(4740220423 4740402040).each do |tel|
+			begin
+				log 'Sending SMS to %s with the text: %s' % [tel, text]
+				@clickatell.send_message tel, text
+			rescue
+				wait = 10.0
+				log 'Could not send SMS, try again in %.0f seconds' % wait
+				sleep wait
+				retry
+			end
+		end
+	end
+
+	def log(text)
+		puts Time.new.to_s + ' > ' + text
+	end
 end
+
+
+FireAlarm.new.run
