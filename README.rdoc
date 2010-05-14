@@ -1,0 +1,5 @@
+== Fire alarm
+
+This is a very simple project that interfaces my fire alarms that have a single discrete output that is read my a modbus ethernet module from Schneider. It then unses clickatell to send me an sms whenever any of the alarms go off.
+
+This project is probably not useful unless you have the same modbus ethernet gateway as I have.
