@@ -10,6 +10,10 @@ require 'daemons'
 class FireAlarm
 	SAMPLE_TIME = 5.0
 
+	def initialize
+		@test_sms_active = false
+	end
+
 	def run
 		# cat /var/log/firealarm.rb.output 
 		# cat /var/run/firealarm.rb.pid 
@@ -21,18 +25,33 @@ class FireAlarm
 										 :log_output => true,
 										 :dir_mode => :system) do
 			log 'Fire alarm daemon started'
-			with_modbus do
-				init_clickatell
-				loop do 
-					fire_undetected_loop
-					fire_detected_loop
+			loop do 
+				with_modbus do
+					init_clickatell
+					send_sms 'Fire alarm system started ok'
+					loop do 
+						fire_undetected_loop
+						fire_detected_loop
+					end
 				end
+				send_sms 'Firealarm: Modbus connection was lost'
 			end
 		end
 	end
 
+	def is_thursday
+		Date.today.wday == 4
+	end
+
+	def test_sms
+		new_test_sms = is_thursday && (Time.now.hour >= 12)
+		send_sms 'Firealarm: weekly test' if new_test_sms && !@test_sms_active
+		@test_sms_active = new_test_sms
+	end
+
 	def fire_undetected_loop
 		while not check_fire_detected do
+			test_sms
 			sleep SAMPLE_TIME
 		end
 	end
@@ -40,6 +59,7 @@ class FireAlarm
 	def fire_detected_loop
 		send_sms 'Smoke or water detector activated'
 		while check_fire_detected do
+			test_sms
 			sleep SAMPLE_TIME
 		end
 		log 'Fire alarm no longer active'
