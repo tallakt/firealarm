@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
 require 'rubygems'
-require 'etc'
+require 'bundler/setup'
 require 'yaml'
 require 'rmodbus'
 require 'clickatell'
