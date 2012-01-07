@@ -5,37 +5,28 @@ require 'bundler/setup'
 require 'yaml'
 require 'rmodbus'
 require 'clickatell'
-require 'daemons'
 
 class FireAlarm
 	SAMPLE_TIME = 5.0
+	#SMS_RECIPIENTS = [4740220423 4793242788]
+	SMS_RECIPIENTS = [4740220423]
 
 	def initialize
 		@test_sms_active = false
 	end
 
 	def run
-		# cat /var/log/firealarm.rb.output 
-		# cat /var/run/firealarm.rb.pid 
-
-
-		Daemons.run_proc('firealarm.rb', 
-										 :multiple => false, 
-										 :backtrace => true, 
-										 :log_output => true,
-										 :dir_mode => :system) do
-			log 'Fire alarm daemon started'
-			loop do 
-				with_modbus do
-					init_clickatell
-					send_sms 'Fire alarm system started ok'
-					loop do 
-						fire_undetected_loop
-						fire_detected_loop
-					end
+		puts 'Fire alarm started'
+		loop do 
+			with_modbus do |slave|
+				init_clickatell
+				send_sms 'Fire alarm system started ok'
+				loop do 
+					fire_undetected_loop(slave)
+					fire_detected_loop(slave)
 				end
-				send_sms 'Firealarm: Modbus connection was lost'
 			end
+			send_sms 'Firealarm: Modbus connection was lost'
 		end
 	end
 
@@ -43,34 +34,35 @@ class FireAlarm
 		Date.today.wday == 4
 	end
 
-	def test_sms
+	def test_sms(slave)
 		new_test_sms = is_thursday && (Time.now.hour >= 12)
-		send_sms 'Firealarm: weekly test' if new_test_sms && !@test_sms_active
+		if new_test_sms && !@test_sms_active
+			send_sms "Firealarm: weekly test, currect status is #{check_fire_detected(slave) ? 'burning' : 'ok'}"
+		end
 		@test_sms_active = new_test_sms
 	end
 
-	def fire_undetected_loop
-		while not check_fire_detected do
-			test_sms
+	def fire_undetected_loop(slave)
+		while not check_fire_detected(slave) do
+			test_sms(slave)
 			sleep SAMPLE_TIME
 		end
 	end
 
-	def fire_detected_loop
+	def fire_detected_loop(slave)
 		send_sms 'Smoke or water detector activated'
-		while check_fire_detected do
-			test_sms
+		while check_fire_detected(slave) do
+			test_sms(slave)
 			sleep SAMPLE_TIME
 		end
-		log 'Fire alarm no longer active'
+		puts 'Fire alarm no longer active'
 	end
 
 	def with_modbus
-		@mb = ModBus::TCPClient.new '192.168.0.189'
-		begin
-			yield
-		ensure
-			@mb.close
+		ModBus::TCPClient.new '192.168.0.189' do |mb|
+			mb.with_slave 1 do |slave|
+				yield slave
+			end
 		end
 	end
 
@@ -79,28 +71,24 @@ class FireAlarm
 		@clickatell = Clickatell::API.authenticate cc['api_key'], cc['username'], cc['password']
 	end
 
-	def check_fire_detected
-		ra, rb = @mb.read_holding_registers 5391, 2
+	def check_fire_detected(slave)
+		ra, rb = slave.holding_registers[5391..5392]
 		a, b, c, d = (0..3).map {|bit| ra[bit] }
 		a == 0
 	end
 
 	def send_sms(text)
-		%w(4740220423 4740402040).each do |tel|
+		SMS_RECIPIENTS.each do |tel|
 			begin
-				log 'Sending SMS to %s with the text: %s' % [tel, text]
+				puts 'Sending SMS to %s with the text: %s' % [tel, text]
 				@clickatell.send_message tel, text
 			rescue
 				wait = 10.0
-				log 'Could not send SMS, try again in %.0f seconds' % wait
+				puts 'Could not send SMS, try again in %.0f seconds' % wait
 				sleep wait
 				retry
 			end
 		end
-	end
-
-	def log(text)
-		puts Time.new.to_s + ' > ' + text
 	end
 end
 
