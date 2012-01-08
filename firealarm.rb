@@ -8,8 +8,8 @@ require 'clickatell'
 
 class FireAlarm
 	SAMPLE_TIME = 5.0
-	#SMS_RECIPIENTS = [4740220423 4793242788]
-	SMS_RECIPIENTS = [4740220423]
+	SMS_RECIPIENTS = [4740220423, 4793242788]
+	#SMS_RECIPIENTS = [4740220423]
 
 	def initialize
 		@test_sms_active = false
