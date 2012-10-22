@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+$stdout.sync = true
 
 require 'rubygems'
 require 'bundler/setup'
