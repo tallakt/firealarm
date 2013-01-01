@@ -18,16 +18,19 @@ class FireAlarm
 
 	def run
 		puts 'Fire alarm started'
-		loop do 
+		begin
 			with_modbus do |slave|
-				init_clickatell
 				send_sms 'Fire alarm system started ok'
 				loop do 
 					fire_undetected_loop(slave)
 					fire_detected_loop(slave)
 				end
 			end
+		rescue => e
+			puts e.to_s
+			puts e.backtrace
 			send_sms 'Firealarm: Modbus connection was lost'
+			retry
 		end
 	end
 
@@ -67,9 +70,9 @@ class FireAlarm
 		end
 	end
 
-	def init_clickatell
+	def with_clickatell
 		cc = YAML.load_file File.join(Etc.getpwuid.dir, '.clickatell')
-		@clickatell = Clickatell::API.authenticate cc['api_key'], cc['username'], cc['password']
+		yield Clickatell::API.authenticate cc['api_key'], cc['username'], cc['password']
 	end
 
 	def check_fire_detected(slave)
@@ -79,16 +82,23 @@ class FireAlarm
 	end
 
 	def send_sms(text)
-		SMS_RECIPIENTS.each do |tel|
-			begin
-				puts 'Sending SMS to %s with the text: %s' % [tel, text]
-				@clickatell.send_message tel, text
-			rescue
-				wait = 10.0
-				puts 'Could not send SMS, try again in %.0f seconds' % wait
-				sleep wait
-				retry
+		recipients = SMS_RECIPIENTS.dup
+
+		begin
+			with_clickatell do |clickatell|
+				while recipients.any?
+					puts 'Sending SMS to %s with the text: %s' % [recipients.first, text]
+					clickatell.send_message recipients.first, text
+					recipients.shift
+				end
 			end
+		rescue => e
+			puts e.to_s
+			puts e.backtrace
+			wait = 10.0
+			puts 'Could not send SMS, try again in %.0f seconds' % wait
+			sleep wait
+			retry
 		end
 	end
 end
