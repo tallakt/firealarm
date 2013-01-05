@@ -4,7 +4,9 @@ This is a very simple project that interfaces my fire alarms that have a single 
 
 This project is probably not useful unless you have the same modbus ethernet gateway as I have.
 
-To install the daemon, please refer to the foreman documentation
+To install the daemon, please refer to the foreman documentation. The shortcut is
+
+	sudo foreman export upstart /etc/init --app firealarm
 
 Be sure to add the line
 
