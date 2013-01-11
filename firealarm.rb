@@ -83,7 +83,7 @@ class FireAlarm
 
 	def send_test_sms
 		log.info 'Weekly test activated'
-		send_sms "Firealarm: weekly test, currect status is #{check_fire_detected(slave) ? 'burning' : 'ok'}"
+		send_sms "Firealarm: weekly test"
 	end
 
 	def fire_detected
