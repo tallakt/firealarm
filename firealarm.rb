@@ -30,10 +30,10 @@ class BoolSignal
 
 	def v=(v)
 		if !v && @old_v
-			@on_fe.call
+			@on_fe && @on_fe.call
 		end
 		if v && !@old_v
-			@on_re.call
+			@on_re && @on_re.call
 		end
 		@old_v = !!v
 	end
@@ -41,8 +41,7 @@ end
 
 class FireAlarm
 	SAMPLE_TIME = 20.0
-	SMS_RECIPIENTS = [4740220423, 4740402040]
-	#SMS_RECIPIENTS = [4740220423]
+	SMS_RECIPIENTS = [4740220423]
 	attr_reader :log
 
 	def initialize
