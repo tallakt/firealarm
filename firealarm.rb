@@ -15,12 +15,12 @@ class BoolSignal
 		yield self if block_given?
 	end
 
-	def on_re(&block)
-		@on_re = block
+	def re(&block)
+		@re_proc = block
 	end
 
-	def on_fe(&block)
-		@on_fe = block
+	def fe(&block)
+		@fe_proc = block
 	end
 
 	# current value
@@ -30,10 +30,10 @@ class BoolSignal
 
 	def v=(v)
 		if !v && @old_v
-			@on_fe && @on_fe.call
+			@fe_proc && @fe_proc.call
 		end
 		if v && !@old_v
-			@on_re && @on_re.call
+			@re_proc && @re_proc.call
 		end
 		@old_v = !!v
 	end
@@ -48,11 +48,11 @@ class FireAlarm
 		@test_sms_active = false
 		@log = Logger.new STDERR
 		@test_active = BoolSignal.new do |s|
-			s.on_re { send_test_sms }
+			s.re { send_test_sms }
 		end
 		@fire_detected = BoolSignal.new do |s|
-			s.on_re { fire_detected }
-			s.on_fe { fire_alarm_gone }
+			s.re { fire_detected }
+			s.fe { fire_alarm_gone }
 		end
 	end
 
